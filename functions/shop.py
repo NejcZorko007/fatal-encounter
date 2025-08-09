@@ -1,14 +1,7 @@
-import random
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import PhotoImage
-import os
-import configparser
-
 class Shop:
     #item shop
     item_shop = {
-        "Offline": 0,
+        "Health Potion": 100,
     }
 
     #upgrades, 6 levels

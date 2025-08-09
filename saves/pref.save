@@ -1,9 +1,9 @@
 [buyed_items]
 
 [coins]
-coins = 5800
+coins = 4818
 
 [upgrades]
 sharpness upgrade = 6
-shield upgrade = 0
+shield upgrade = 5
 

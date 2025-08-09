@@ -3,25 +3,16 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import PhotoImage
 import os
-from shop import Shop
-from enemy import Enemy
-from player import Player
 import configparser
 
+#Main game Modules
+from functions.shop import Shop
+from freeplay.enemy import Enemy
+from functions.player import Player
+from story import Story
 
 version = "b1.1.6"
 #Removed time and pygame
-#Vsebuje 649 vrstic kode + 45 Neuporabne kode
-#Project by Žiga Plevel And Nejc Zorko
-#Shop and upgrades idea by Zmalajev, made by Zorko4288
-#Fatal Encounter - BattleGame.com
-#About
-#Fatal Encounter is a turn-based battle game where the player fights against an enemy.
-#The player can attack, heal, or defend during their turn. The game ends when either the player or the enemy's health reaches zero.
-#The game features a GUI built with Tkinter, allowing players to interact with the game easily.
-#The game also includes a shop and settings menu for customization.
-#The game is designed to be simple and engaging, with a focus on turn-based combat mechanics.
-#The game is a work in progress and may include additional features in the future.
     
 #Main game Class
 class BattleGame:
@@ -29,9 +20,11 @@ class BattleGame:
     def __init__(self, root):
         self.immunity_rounds = 0
         self.root = root
+        self.story = Story(root, self)  # Pass main instance to Story
         self.root.withdraw()
 
-        self.pref_path = os.path.join(os.path.dirname(__file__), "pref.save")
+
+        self.pref_path = os.path.join(os.path.dirname(__file__), "./saves/pref.save")
         self.config = configparser.ConfigParser()
         self.init_pref_file()
 
@@ -92,6 +85,7 @@ class BattleGame:
         #self.image2.pack()
         tk.Label(self.welcome_window, text="Main Menu").pack(pady=20)
         tk.Button(self.welcome_window, text="Start Game", command=self.create_welcome_window2).pack(pady=10)
+        tk.Button(self.welcome_window, text="Story Mode", command=self.story.start_story).pack(pady=10)
         tk.Button(self.welcome_window, text="Upgrades Shop", comman=self.shop).pack(pady=15)
         tk.Button(self.welcome_window, text="Settings", command=self.settings).pack(pady=15)
         tk.Button(self.welcome_window, text="Credits", command=self.credits_credits).pack(pady=15)
@@ -123,6 +117,14 @@ class BattleGame:
         )
         fullscreen_checkbox.pack(pady=10)
 
+    def story_mode(self):
+        self.story = Story(self.root, self)  # Pass main instance to Story
+        self.story.start_story()
+        self.root.withdraw()  # Hide the main window while in story mode
+        self.welcome_window.destroy()  # Close the welcome window
+
+    def coming_soon(self): #Temporary function for story mode
+        messagebox.showinfo("Coming Soon", "This feature is coming soon!")
     #Shop GUI
     def shop(self):
         self.shopwindow = tk.Toplevel(self.root)
@@ -320,11 +322,11 @@ class BattleGame:
         tk.Label(self.changenotes, text="Fatal Encounter", font=("Arial", 14)).pack(pady=10)
         tk.Label(self.changenotes, text=f"For version: {version}").pack(padx=14)
         tk.Label(self.changenotes, text="Change Notes:").pack(padx=15)
-        tk.Label(self.changenotes, text="- Started up the Shop.BattleGame.com Service").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added Shop.BattleGame.com Service").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added items and upgrades to both shops").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added money system and saving system for coin value").pack(padx=16)
-        tk.Label(self.changenotes, text="- Bug Fixes").pack(padx=16)
+        tk.Label(self.changenotes, text="- Added Story Mode").pack(padx=16)
+        tk.Label(self.changenotes, text="- New item in Item Shop").pack(padx=16)
+        tk.Label(self.changenotes, text="- Added map for Story Mode").pack(padx=16)
+        tk.Label(self.changenotes, text="- Fixes to file saving").pack(padx=16)
+        tk.Label(self.changenotes, text="- Major Bug Fixes").pack(padx=16)
         tk.Label(self.changenotes, text="BattleGame.com").pack(padx=16)
 
     # Starting Window
@@ -550,7 +552,7 @@ class BattleGame:
             self.player.defense -= 5
 
         self.update_health_labels()
-    
+ 
     #Enemy AI
     def enemy_turn(self):
         if self.immunity_rounds > 0:
@@ -593,10 +595,12 @@ class BattleGame:
         self.root = tk.Tk()
         self.root.withdraw()
         self.create_welcome_window()
+
 #Game loop
 if __name__ == "__main__":
     root = tk.Tk()
     game = BattleGame(root)
+    story = Story(game, root)
     root.mainloop()
 
 #Used code

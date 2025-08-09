@@ -1,11 +1,4 @@
 import random
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import PhotoImage
-import os
-import configparser
-
-# Player class
 class Player:
     def __init__(self, name, health, attack, defense, heal, coins=0):
         self.name = name

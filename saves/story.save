@@ -1,0 +1,9 @@
+[story_active]
+story_active = False
+
+[position]
+position = 0, 0
+
+[enemy_dead_block]
+enemy_dead_block = 
+

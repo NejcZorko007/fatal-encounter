@@ -1,4 +1,4 @@
-# Enemy class
+# Map enemy class
 import random
 import tkinter as tk
 from tkinter import messagebox
@@ -7,8 +7,9 @@ import os
 import configparser
 
 class Enemy:
-    def __init__(self, name, health, attack, defense):
-        self.name = name
+    def __init__(self, name, health, attack, defense,):
+        enemy_names = ["Goblin", "Orc", "Troll", "Dragon", "Vampire"]
+        self.name = enemy_names[random.randint(0, len(enemy_names) - 1)]
         self.health = health
         self.attack = attack
         self.defense = defense
