@@ -17,4 +17,5 @@ When the game starts, it starts a turn-based game. You can Attack, Defend or Hea
 Story mode is still being developed, so more information will be avalible soon.
 
 # More
-If you have any suggestions and issues, please don't hesitate to add them. we would love to hear from the community, how we can make the game better.
+If you have any suggestions and issues, please don't hesitate to add them. We would love to hear from the community, how we can make the game better.
+
