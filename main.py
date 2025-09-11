@@ -1,6 +1,10 @@
 import random
 import tkinter as tk
+<<<<<<< HEAD
 from tkinter import messagebox
+=======
+from tkinter import Button, messagebox
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
 from tkinter import PhotoImage
 import os
 from shop import Shop
@@ -101,8 +105,17 @@ class BattleGame:
         # Settings window for changing window size
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("Fatal Encounter - Settings")
+<<<<<<< HEAD
         self.settings_window.geometry("300x250")
 
+=======
+        self.settings_window.geometry("300x225")
+
+        #Exit button
+        tk.Button(self.settings_window, text="Exit", command=self.settings_window.destroy).pack(pady=10, side=tk.BOTTOM)
+
+        # Settings title
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
         tk.Label(self.settings_window, text="Settings", font=("LEDBOARD", 14)).pack(pady=10)
 
         # Button for changing window size
@@ -149,6 +162,13 @@ class BattleGame:
 
         tk.Button(self.shopwindow, text="Open Selected Shop", command=open_selected_shop).pack(pady=12)
 
+<<<<<<< HEAD
+=======
+        # Exit button
+        exit_button = Button(self.shopwindow, text="Exit", command=self.shopwindow.destroy)
+        exit_button.pack(pady=3)
+
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
         # coins auto-update
         self.update_shop_coins_label()
 
@@ -164,10 +184,20 @@ class BattleGame:
     def open_item_shop(self):
         self.item_shop_window = tk.Toplevel(self.root)
         self.item_shop_window.title("Item Shop")
+<<<<<<< HEAD
         self.item_shop_window.geometry("300x450")
 
         tk.Label(self.item_shop_window, text="Item Shop", font=("Arial", 14)).pack(pady=10)
 
+=======
+        self.item_shop_window.geometry("300x200")
+
+        tk.Label(self.item_shop_window, text="Item Shop", font=("Arial", 14)).pack(pady=10)
+
+        exit_button = Button(self.item_shop_window, text="Exit", command=self.item_shop_window.destroy)
+        exit_button.pack(pady=5)
+
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
         # Always show coins value
         if hasattr(self, 'player'):
             coins_value = self.player.coins
@@ -220,7 +250,11 @@ class BattleGame:
     def upgrades_shop(self):
         self.upgrades_window = tk.Toplevel(self.root)
         self.upgrades_window.title("Upgrades Shop")
+<<<<<<< HEAD
         self.upgrades_window.geometry("350x350")
+=======
+        self.upgrades_window.geometry("350x250")
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
         tk.Label(self.upgrades_window, text="Upgrades Shop", font=("Arial", 14)).pack(pady=10)
 
         # Load current upgrade levels from save file
@@ -229,6 +263,13 @@ class BattleGame:
         sharpness_level = int(upgrades.get('Sharpness Upgrade', 0))
         shield_level = int(upgrades.get('Shield Upgrade', 0))
 
+<<<<<<< HEAD
+=======
+        # Exit button
+        exit_button = Button(self.upgrades_window, text="Exit", command=self.upgrades_window.destroy)
+        exit_button.pack(pady=5)
+
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
         # show value of coins
         if hasattr(self, 'player'):
             coins_value = self.player.coins
@@ -310,6 +351,10 @@ class BattleGame:
         tk.Label(self.welcome_window2, text="Zmalajev And Zorko4288").pack(padx=16)
         tk.Label(self.welcome_window2, text=version).pack(padx=19)
         tk.Label(self.welcome_window2, text="BattleGame.com").pack(padx=16)
+<<<<<<< HEAD
+=======
+        tk.Button(self.welcome_window2, text="Back", command=self.welcome_window2.destroy).pack(pady=15)
+>>>>>>> e9ea926 (Exit buttons added and windows resized)
 
     #Release note Window
     def note_release(self):
