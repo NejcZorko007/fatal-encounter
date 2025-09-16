@@ -96,41 +96,26 @@ class BattleGame:
         self.settings_window = tk.Toplevel(self.root)
         self.settings_window.title("Fatal Encounter - Settings")
         self.settings_window.geometry("300x250")
-
-        tk.Label(self.settings_window, text="Settings", font=("LEDBOARD", 14)).pack(pady=10)
-
-        # Button for changing window size
-        tk.Button(self.settings_window, text="Change window size", command=self.change_window_size).pack(pady=12)
-
+        tk.Label(self.settings_window, text="Settings", font=("Arial", 14)).pack(pady=10)
         # Button for showing change notes
         tk.Button(self.settings_window, text="Change Notes", command=self.note_release).pack(pady=12)
 
-        # Checkbox for fullscreen mode
-        self.fullscreen_var = tk.IntVar()  # Variable to track checkbox state
-        fullscreen_checkbox = tk.Checkbutton(
-        self.settings_window,
-        text="Enable Fullscreen",
-        variable=self.fullscreen_var,
-            onvalue=1,
-            offvalue=0,
-            command=self.toggle_fullscreen
-        )
-        fullscreen_checkbox.pack(pady=10)
-
+    #Move active instantcs to story.py
     def story_mode(self):
         self.story = Story(self.root, self)  # Pass main instance to Story
         self.story.start_story()
         self.root.withdraw()  # Hide the main window while in story mode
         self.welcome_window.destroy()  # Close the welcome window
 
-    def coming_soon(self): #Temporary function for story mode
+    def coming_soon(self): #Temporary function for unfinished features
         messagebox.showinfo("Coming Soon", "This feature is coming soon!")
+    
     #Shop GUI
     def shop(self):
         self.shopwindow = tk.Toplevel(self.root)
         self.shopwindow.title("Fatal Encounter - Shop")
         self.shopwindow.geometry("300x250")
-        tk.Label(self.shopwindow, text="Shop", font=("LEDBOARD", 14)).pack(pady=10)
+        tk.Label(self.shopwindow, text="Shop", font=("Arial", 14)).pack(pady=10)
 
         # Dropdown settings
         shop_var = tk.StringVar(value="Item Shop")
@@ -153,7 +138,8 @@ class BattleGame:
 
         # coins auto-update
         self.update_shop_coins_label()
-
+    
+    #coins label update
     def update_shop_coins_label(self):
         # update in shop window if exsist
         if hasattr(self, 'shopwindow') and self.shopwindow.winfo_exists():
@@ -163,6 +149,7 @@ class BattleGame:
             #scheduled update
             self.shopwindow.after(500, self.update_shop_coins_label)
 
+    #item shop window logic
     def open_item_shop(self):
         self.item_shop_window = tk.Toplevel(self.root)
         self.item_shop_window.title("Item Shop")
@@ -216,7 +203,7 @@ class BattleGame:
             self.config['coins']['coins'] = str(coins)
             with open(self.pref_path, 'w') as configfile:
                 self.config.write(configfile)
-        messagebox.showinfo("Item Shop", f"Bought {item} for {price} coins!\n(Shop Service Offline: Item not delivered.)")
+        #messagebox.showerror("Item Shop", f"Bought {item} for {price} coins!\n(Shop Service Offline: Item not delivered.)") #temporary service offline message
 
     #upgrades shop logic
     def upgrades_shop(self):
@@ -231,7 +218,7 @@ class BattleGame:
         sharpness_level = int(upgrades.get('Sharpness Upgrade', 0))
         shield_level = int(upgrades.get('Shield Upgrade', 0))
 
-        # show value of coins
+        # pull coins value from class or save file
         if hasattr(self, 'player'):
             coins_value = self.player.coins
         else:
@@ -253,13 +240,14 @@ class BattleGame:
 
         # Shield upgrade logic
         tk.Label(self.upgrades_window, text=f"Shield Upgrade (Level {shield_level}/5)", font=("Arial", 12)).pack(pady=5)
-        if shield_level < 5:
+        if shield_level < 5: #Max upgrade level
             price = Shop.upgrade_shop["Shield Upgrade"][shield_level]
             multiplier = Shop.upgrade_multipliers["Shield Upgrade"][shield_level]
             tk.Label(self.upgrades_window, text=f"Price: {price} | Multiplier: x{multiplier}").pack()
             tk.Button(self.upgrades_window, text="Buy", command=lambda: self.buy_upgrade("Shield Upgrade")).pack(pady=2)
         else:
-            tk.Label(self.upgrades_window, text="Max Level Reached").pack()
+            tk.Label(self.upgrades_window, text="Max Level Reached").pack() #max limit reached text
+
     #Upgrade logic
     def buy_upgrade(self, upgrade_name):
         self.config.read(self.pref_path)
@@ -294,13 +282,6 @@ class BattleGame:
         self.upgrades_window.destroy()
         self.upgrades_shop()
 
-    # Toggle fullscreen mode
-    def toggle_fullscreen(self):
-        if self.fullscreen_var.get() == 1:  # Checkbox is checked
-            self.root.attributes("-fullscreen", True)
-        else:  # Checkbox is unchecked
-            self.root.attributes("-fullscreen", False)
-
     # Credits Window
     def credits_credits(self):
         self.welcome_window2 = tk.Toplevel(self.root)
@@ -326,6 +307,7 @@ class BattleGame:
         tk.Label(self.changenotes, text="- New item in Item Shop").pack(padx=16)
         tk.Label(self.changenotes, text="- Added map for Story Mode").pack(padx=16)
         tk.Label(self.changenotes, text="- Fixes to file saving").pack(padx=16)
+        tk.Label(self.changenotes, text="- Removed change window size").pack(padx=16)
         tk.Label(self.changenotes, text="- Major Bug Fixes").pack(padx=16)
         tk.Label(self.changenotes, text="BattleGame.com").pack(padx=16)
 
@@ -350,23 +332,24 @@ class BattleGame:
         tk.Button(self.welcome_window2, text="Start Game", command=self.start_game).pack(pady=10)
         tk.Button(self.welcome_window2, text="Back", command=self.back).pack(pady=15)
 
+    #back button logic (for main game window)
     def back(self):
         self.welcome_window2.destroy()
         self.create_welcome_window()
 
-    # Check for no name
+    # Check for no name in value
     def start_game(self):
         self.player_name = self.player_name.get()
         self.enemy_name = self.enemy_name.get()
-        if not self.player_name:
+        if not self.player_name:    #return if player name = null
             messagebox.showerror("Error", "Please enter a valid name.")
             return
 
-        if not self.enemy_name:
+        if not self.enemy_name: #return if enemy name = null
             messagebox.showerror("Error", "Please enter a valid name.")
             return
         
-        self.main_game_window(self.player_name, self.enemy_name, self.selected_resolution)
+        self.main_game_window(self.player_name, self.enemy_name, self.selected_resolution) #pass values to main game window
         self.welcome_window2.destroy()
 
     # Main Game Window
@@ -391,85 +374,32 @@ class BattleGame:
         shield_multiplier = Shop.upgrade_multipliers["Shield Upgrade"][shield_level-1] if shield_level > 0 else 1.0
 
         self.player = Player(player_name, health=100, attack=int(25 * sharpness_multiplier), defense=int(10 * shield_multiplier), heal=0, coins=coins)
-        self.enemy = Enemy(enemy_name, health=75, attack=20, defense=10)
+        self.enemy = Enemy(enemy_name, health=400, attack=30, defense=20, enemy_heal=0)
         # GUI
         self.info_label = tk.Label(self.root, text="BattleGame.com")
         self.info_label.pack()
-        self.player_health_label = tk.Label(self.root, text=f"{self.player.name} 's HP: {self.player.health}")
+        self.player_health_label = tk.Label(self.root, text=f"{self.player.name} 's HP: {self.player.health}")#display player health
         self.player_health_label.pack()
         # load coins value
         self.coins_label = tk.Label(self.root, text=f"Coins: {self.player.coins}")  # Show coins
         self.coins_label.pack()
 
-        self.enemy_health_label = tk.Label(self.root, text=f"{self.enemy.name} 's HP: {self.enemy.health}")
+        self.enemy_health_label = tk.Label(self.root, text=f"{self.enemy.name} 's HP: {self.enemy.health}")#display enemy health
         self.enemy_health_label.pack()
 
-        self.action_frame = tk.Frame(self.root)
+        self.action_frame = tk.Frame(self.root)#create frame for buttons
         self.action_frame.pack()
 
-        self.attack_button = tk.Button(self.action_frame, text="Attack", command=self.attack)  # self.attack
+        self.attack_button = tk.Button(self.action_frame, text="Attack", command=self.attack)  # start attack function
         self.attack_button.pack(side="left", padx=10)
 
-        self.heal_button = tk.Button(self.action_frame, text="Heal", command=self.heal)  # self.heal
+        self.heal_button = tk.Button(self.action_frame, text="Heal", command=self.heal)  # start heal function
         self.heal_button.pack(side="left", padx=10)
 
-        self.defend_button = tk.Button(self.action_frame, text="Defend", command=self.defend)  # self.defend
+        self.defend_button = tk.Button(self.action_frame, text="Defend", command=self.defend)  # start defend function
         self.defend_button.pack(side="left", padx=10)
 
-        # Apply the selected resolution
-        self.apply_resolution(selected_resolution)
-    
-    #Resolution fix -Zorko4288
-    def apply_resolution(self, selected_resolution):
-        self.selected_resolution = selected_resolution
-        if hasattr(self, 'heal_button'):
-            self.root.geometry(selected_resolution)
-            if selected_resolution == "800x600":
-                self.heal_button.config(width=10, height=10)
-                self.defend_button.config(width=10, height=10)
-                self.attack_button.config(width=10, height=10)
-            elif selected_resolution == "1024x768":
-                self.heal_button.config(width=15, height=15)
-                self.defend_button.config(width=15, height=15)
-                self.attack_button.config(width=15, height=15)
-            elif selected_resolution == "1280x768":
-                self.heal_button.config(width=16, height=16)
-                self.defend_button.config(width=16, height=16)
-                self.attack_button.config(width=16, height=16)
-            elif selected_resolution == "1360x768":
-                self.heal_button.config(width=18, height=18)
-                self.defend_button.config(width=18, height=18)
-                self.attack_button.config(width=18, height=18)
-            elif selected_resolution == "1600x1050":
-                self.heal_button.config(width=22, height=22)
-                self.defend_button.config(width=22, height=22)
-                self.attack_button.config(width=22, height=22)
-            else:
-                self.heal_button.config(width=25, height=25)
-                self.defend_button.config(width=25, height=25)
-                self.attack_button.config(width=25, height=25)
-
-    #Window settings
-    def change_window_size(self):
-        def apply_resolution():
-            selected_resolution = resolution_var.get()
-            self.apply_resolution(selected_resolution)
-            self.change_window_size1.destroy()
-            self.settings_window.destroy()
-            messagebox.showinfo("Resolution Change", f"Resolution changed to {selected_resolution}")
-
-        self.change_window_size1 = tk.Toplevel(self.root)
-        self.change_window_size1.title("Fatal Encounter - Settings")
-        self.change_window_size1.geometry("300x150")
-
-        resolution_var = tk.StringVar(value=self.selected_resolution)
-        resolutionlist = [
-            "800x600", "1024x768", "1280x768", "1360x768", "1600x1050", "1920x1080"
-        ]
-
-        tk.Label(self.change_window_size1, text="Select Resolution:").pack(pady=10)
-        tk.OptionMenu(self.change_window_size1, resolution_var, *resolutionlist).pack(pady=10)
-        tk.Button(self.change_window_size1, text="Apply", command=apply_resolution).pack(pady=10)
+    #Update scripts
     #health label Updates
     def update_health_labels(self):
         # Only update labels if they still exist (window not destroyed)
@@ -480,27 +410,30 @@ class BattleGame:
         if hasattr(self, 'coins_label') and self.coins_label.winfo_exists():
             self.coins_label.config(text=f"Coins: {self.player.coins}")
 
+    def inventory_update(self):
+        pass  # Placeholder for future inventory updates
+
 #Games Logic, Developed in corporation with Zorko4288 and Zmalajev inc.
     # Attack function
     def attack(self):
-        if not self.player.is_alive() or not self.enemy.is_alive():
+        if not self.player.is_alive() or not self.enemy.is_alive():#player/enemy alive check
             return
             
         # Attack Taktika
-        damage = random.randint(self.player.attack - 2, self.player.attack + 2) - self.enemy.defense
+        damage = random.randint(self.player.attack - 2, self.player.attack + 2) - self.enemy.defense#bulj random damage(self.player.attack defined in start of main game window.)
         self.enemy.take_damage(damage)
         if damage < 0:
             damage = 0  #negative damage prevention
         
         messagebox.showinfo("Attack", f"{self.player.name} attacks {self.enemy.name} for {damage} damage!")
-        BattleGame.hits += 1
-        self.update_health_labels()
+        BattleGame.hits += 1 #oneshot counter
+        self.update_health_labels()#sent update request
 
-        damagechance = random.randint(1, 5)
+        damagechance = random.randint(1, 5) #random critical hit
         if damagechance == 2:
-            criticaldamage = random.randint(5, 15)
+            criticaldamage = random.randint(5, 15)#random critical damage value
             total_damage = criticaldamage + damage
-            self.enemy.take_damage(criticaldamage)
+            self.enemy.take_damage(criticaldamage)#send damage value
             messagebox.showinfo("Critical Hit", f"{self.player.name} attacks {self.enemy.name} with extra {criticaldamage} damage! Total damage: {total_damage}")
 
         if not self.enemy.is_alive():
@@ -525,7 +458,7 @@ class BattleGame:
             messagebox.showinfo("Super Heal", f"{self.player.name} super heals for {superhealing_amount} health!")
 
         # Heal Taktika
-        healing_amount = self.player.heal_player()
+        healing_amount = self.player.heal_player()#heal random value in player class
         self.update_health_labels()
         messagebox.showinfo("Heal", f"{self.player.name} heals for {healing_amount} health!")
         self.enemy_turn()    
@@ -555,15 +488,30 @@ class BattleGame:
  
     #Enemy AI
     def enemy_turn(self):
-        if self.immunity_rounds > 0:
+        if not self.player.is_alive() or not self.enemy.is_alive():#alive check
+            return
+        
+        if self.immunity_rounds > 0:#check for immunity of player
             self.immunity_rounds -= 1
             messagebox.showinfo("Enemy Attack", f"{self.enemy.name} attacks, but {self.player_name} is immune!")
             return
+        
+        choise = random.randint(1, 3) #random enemy action choice
+        print(choise) #debug print
+        if choise == 1:
+            damage = max(0, random.randint(self.enemy.attack - 2, self.enemy.attack + 2) - self.player.defense)
+            self.player.take_damage(damage)
+            messagebox.showinfo("Enemy Attack", f"{self.enemy.name} attacks {self.player.name} for {damage} damage!")
+            self.update_health_labels()
+        elif choise == 2:
+            heal_amount = self.enemy.heal_enemy()
+            messagebox.showinfo("Enemy Heal", f"{self.enemy.name} heals for {heal_amount} health!")
+            self.update_health_labels()
+        elif choise == 3:
+            self.enemy.defense += 5
+            messagebox.showinfo("Enemy Defend", f"{self.enemy.name} is defending this turn!")
+            self.update_health_labels()
 
-        damage = max(0, random.randint(self.enemy.attack - 2, self.enemy.attack + 2) - self.player.defense)
-        self.player.take_damage(damage)
-        messagebox.showinfo("Enemy Attack", f"{self.enemy.name} attacks {self.player.name} for {damage} damage!")
-        self.update_health_labels()
 
         if not self.player.is_alive():
             self.end_game(winner=self.enemy.name)
@@ -575,13 +523,16 @@ class BattleGame:
         # Display the winner message
         if winner == self.player.name:
             reward = random.randint(200, 400) #random for coin reward
+            messagebox.showinfo("Battle Over", f"{self.player.name} wins the battle!\nYou earned {reward} coins!")
             if BattleGame.hits == 1: #if player oneshuts enemy
                 bonusreward = random.randint(500, 1000)
+                messagebox.showinfo("Bonus", f"\nYou Receive {bonusreward} coins for oneshot!")
+            else:
+                pass
             self.player.coins += reward #add coins to player
             self.player.coins += bonusreward #add bonus coins for oneshot
             self.save_coins()#initiate autosave
-            messagebox.showinfo("Battle Over", f"{self.player.name} wins the battle!\nYou earned {reward} coins!")
-            messagebox.showinfo("Bonus", f"\nYou Receive {bonusreward} coins for oneshot!")
+            
         else:
             messagebox.showinfo("Battle Over", f"{self.player.name} has been defeated. {self.enemy.name} wins.")
 

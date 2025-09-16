@@ -1,7 +1,8 @@
 class Shop:
     #item shop
     item_shop = {
-        "Health Potion": 100,
+        "Test Item": 1,
+        "Sword": 100,
     }
 
     #upgrades, 6 levels
@@ -11,6 +12,6 @@ class Shop:
     }
     # upgrades multiplier (already linked)
     upgrade_multipliers = {
-        "Sharpness Upgrade": [1.2, 1.4, 1.7, 2.0, 2.5, 9.0],
+        "Sharpness Upgrade": [1.2, 1.4, 1.7, 2.0, 2.5, 120.0],
         "Shield Upgrade": [1.2, 1.4, 1.7, 2.0, 2.5]
     }

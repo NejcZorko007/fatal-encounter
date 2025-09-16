@@ -1,5 +1,7 @@
 import random
 class Player:
+    inventory = []  # added inventory attribute
+    
     def __init__(self, name, health, attack, defense, heal, coins=0):
         self.name = name
         self.health = health
