@@ -1,4 +1,5 @@
 # ⚔️ Fatal Encounter
+![Beta](https://img.shields.io/badge/status-beta-yellow)
 
 Welcome to **Fatal Encounter**, a turn-based battle game where strategy decides victory.  
 The player faces off against an enemy, with the choice to **Attack**, **Defend**, or **Heal** each turn.  
@@ -62,5 +63,3 @@ Together, we can make Fatal Encounter even better.
 This project is currently not licensed. Yet.  
 
 ---
-
-
