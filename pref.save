@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 [buyed_items]
 
 [coins]
@@ -7,15 +7,3 @@ coins = 5800
 [upgrades]
 sharpness upgrade = 6
 shield upgrade = 0
-
-=======
-[buyed_items]
-
-[coins]
-coins = 4986
-
-[upgrades]
-sharpness upgrade = 6
-shield upgrade = 5
-
->>>>>>> e9ea926 (Exit buttons added and windows resized)
