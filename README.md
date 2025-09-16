@@ -52,7 +52,9 @@ Together, we can make Fatal Encounter even better.
 - [ ] Expand Story Mode  
 - [ ] Add new enemy types  
 - [ ] Implement difficulty levels  
-- [ ] Improve visuals and animations  
+- [ ] Improve visuals and animations
+- [ ] Add Item Shop Functions
+- [x] Make Enemy play more advanced
 
 ---
 
@@ -60,4 +62,5 @@ Together, we can make Fatal Encounter even better.
 This project is currently not licensed. Yet.  
 
 ---
+
 
