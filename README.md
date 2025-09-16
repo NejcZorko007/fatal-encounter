@@ -52,16 +52,14 @@ Together, we can make Fatal Encounter even better.
 - [ ] Expand Story Mode  
 - [ ] Add new enemy types  
 - [ ] Implement difficulty levels  
-- [ ] Improve visuals and animations  
+- [ ] Improve visuals and animations
+- [ ] Add Item Shop Functions
+- [x] Make Enemy play more advanced
 
 ---
 
 ## 📜 License
 This project is currently not licensed. Yet.  
-Story mode is still being developed, so more information will be avalible soon.
 
-# More
-If you have any suggestions and issues, please don't hesitate to add them. We would love to hear from the community, how we can make the game better.
+---
 
-
->>>>>>> e9ea926 (Exit buttons added and windows resized)
