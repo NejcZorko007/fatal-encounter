@@ -4,6 +4,7 @@
 Welcome to **Fatal Encounter**, a turn-based battle game where strategy decides victory.  
 The player faces off against an enemy, with the choice to **Attack**, **Defend**, or **Heal** each turn.  
 The game ends when either the player’s or enemy’s health reaches zero.
+This tree is current development of the game and here are also functions that may or may not be included / added in the main release.
 
 🚧 **Note:** Fatal Encounter is still a **Work in Progress (WIP)**. Features, visuals, and gameplay mechanics may change as development continues.
 
@@ -63,3 +64,4 @@ Together, we can make Fatal Encounter even better.
 This project is currently not licensed. Yet.  
 
 ---
+
