@@ -1,689 +1,911 @@
+import sys
+import pygame
 import random
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import Button, messagebox
-from tkinter import PhotoImage
+import json
 import os
-from shop import Shop
-from enemy import Enemy
-from player import Player
-import configparser
+import time
+from typing import Literal
+from tkinter import messagebox
+from pygame import mixer
+# ----------------- GAME IMPORTS (with Fallback) -------------------
+try:
+    from functions.shop import Shop
+    from functions.player import Player
+    from functions.enemy import Enemy
+    import functions.config as config
+    print("External game functions imported successfully.")
+except Exception:#if import fails, user fallback for player/enemy config
+    class Placeholder:
+        def __init__(self, name, health, attack, defense, heal_amount=10, coins=0):
+            self.name = name
+            self.health = health
+            self.max_health = health
+            self.attack = attack
+            self.defense = defense
+            self._heal_amount = heal_amount
+            self.coins = coins
 
+        def is_alive(self):
+            return self.health > 0
 
-version = "b1.1.6"
-#Removed time and pygame
-#Vsebuje 649 vrstic kode + 45 Neuporabne kode
-#Project by Žiga Plevel And Nejc Zorko
-#Shop and upgrades idea by Zmalajev, made by Zorko4288
-#Fatal Encounter - BattleGame.com
-#About
-#Fatal Encounter is a turn-based battle game where the player fights against an enemy.
-#The player can attack, heal, or defend during their turn. The game ends when either the player or the enemy's health reaches zero.
-#The game features a GUI built with Tkinter, allowing players to interact with the game easily.
-#The game also includes a shop and settings menu for customization.
-#The game is designed to be simple and engaging, with a focus on turn-based combat mechanics.
-#The game is a work in progress and may include additional features in the future.
-    
-#Main game Class
-class BattleGame:
-    hits = 0  #hit counter
-    def __init__(self, root):
-        self.immunity_rounds = 0
-        self.root = root
-        self.root.withdraw()
+        def take_damage(self, damage):
+            self.health = max(0, self.health - damage)
 
-        self.pref_path = os.path.join(os.path.dirname(__file__), "pref.save")
-        self.config = configparser.ConfigParser()
-        self.init_pref_file()
+        def heal_player(self):
+            heal_amount = self._heal_amount
+            self.health = min(self.max_health, self.health + heal_amount)
+            return heal_amount
 
-        self.player_name = None
-        self.selected_resolution = "800x600"  # Default resolution
-        self.create_welcome_window()
+        def attack_enemy(self, target):
+            # simple attack calculation
+            base = random.randint(max(0, self.attack - 2), self.attack + 2)
+            damage = max(0, base - getattr(target, "defense", 0))
+            target.take_damage(damage)
+            return damage
 
-    def init_pref_file(self):
-        # file exsisting check
-        if not os.path.exists(self.pref_path):
-            self.config['buyed_items'] = {}
-            self.config['coins'] = {'coins': '0'}
-            self.config['upgrades'] = {'Sharpness Upgrade': '0', 'Shield Upgrade': '0'}
-            with open(self.pref_path, 'w') as configfile:
-                self.config.write(configfile)
-        else:
-            self.config.read(self.pref_path)
-            changed = False
-            if 'buyed_items' not in self.config:
-                self.config['buyed_items'] = {}
-                changed = True
-            if 'coins' not in self.config:
-                self.config['coins'] = {'coins': '0'}
-                changed = True
-            if 'upgrades' not in self.config:
-                self.config['upgrades'] = {'Sharpness Upgrade': '0', 'Shield Upgrade': '0'}
-                changed = True
-            if changed:
-                with open(self.pref_path, 'w') as configfile:
-                    self.config.write(configfile)
+    Player = Placeholder
+    Enemy = Placeholder
 
-    def save_coins(self):
-        # save function
-        self.config.read(self.pref_path)
-        self.config['coins']['coins'] = str(self.player.coins)
-        with open(self.pref_path, 'w') as configfile:
-            self.config.write(configfile)
+    class ConfigPlaceholder:
+        player = None
+        enemy = None
 
-    # Main menu
-    def create_welcome_window(self):
-        self.welcome_window = tk.Toplevel(self.root)
-        self.welcome_window.title("Fatal Encounter")
+    config = ConfigPlaceholder()
+    print("WARNING: Using placeholder Player/Enemy/Config classes (functions.* not found).")
 
-        # Window Center Position
-        window_width = 300
-        window_height = 540
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        x_position = (screen_width // 2) - (window_width // 2)
-        y_position = (screen_height // 2) - (window_height // 2)
-        self.welcome_window.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+# ----------------- START OF CONFIG -------------------
+version = "b1.1.7 (Pygame Demo Fixed)"
+hits = 0
+enemy_turn_pending = False
 
-        #Text, Image and Buttons 
-        tk.Label(self.welcome_window, text="Fatal Encounter", font=("Arial", 16)).pack(pady=15)
-        #self.image = PhotoImage(file="metall.png")
-        #self.image = self.image.subsample(9, 9)
-        #self.image2 = tk.Label(self.welcome_window, image=self.image)
-        #self.image2.pack()
-        tk.Label(self.welcome_window, text="Main Menu").pack(pady=20)
-        tk.Button(self.welcome_window, text="Start Game", command=self.create_welcome_window2).pack(pady=10)
-        tk.Button(self.welcome_window, text="Upgrades Shop", comman=self.shop).pack(pady=15)
-        tk.Button(self.welcome_window, text="Settings", command=self.settings).pack(pady=15)
-        tk.Button(self.welcome_window, text="Credits", command=self.credits_credits).pack(pady=15)
-        tk.Button(self.welcome_window, text="Exit", command=self.root.quit).pack(pady=15)
+pygame.init()
+# Safe mixer init
+try:
+    pygame.mixer.init()
+except pygame.error:
+    print("Warning: Mixer failed to initialize. Audio will be disabled.")
 
-    def settings(self):
-        # Settings window for changing window size
-        self.settings_window = tk.Toplevel(self.root)
-        self.settings_window.title("Fatal Encounter - Settings")
+# Global entities and data storage
+player = None #player entity
+enemy = None #enemy entity
+health_player = None #health label surfaces
+health_enemy = None 
+log_text = "Welcome to Fatal Encounter!"#log text shown in battle
+immunity_rounds = 0 #immunity for chance of immunity
 
-        self.settings_window.geometry("300x250")
+# Screen setup
+WIDTH, HEIGHT = 800, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Fatal Encounter - Fixed Demo")
 
+# Loading bar setup
+BAR_WIDTH = 600
+BAR_HEIGHT = 40
+bar_x = WIDTH // 2 - BAR_WIDTH // 2
+bar_y = HEIGHT // 2
 
-        self.settings_window.geometry("300x225")
+# Colors
+BLACK = (20, 20, 20)
+WHITE = (255, 255, 255)
+LIGHT_GRAY = (200, 200, 200)
+DARK_GRAY = (50, 50, 50)
+GREEN = (50, 205, 50)
+DARK_GREEN = (34, 139, 34)
+GRAY = (60, 60, 60)
+BUTTON_COLOR = (70, 130, 180)
+HOVER_COLOR = (100, 160, 210)
+COLOR_INACTIVE = pygame.Color('lightskyblue3')
+COLOR_ACTIVE = pygame.Color('dodgerblue2')
 
-        #Exit button
-        tk.Button(self.settings_window, text="Exit", command=self.settings_window.destroy).pack(pady=10, side=tk.BOTTOM)
+# Credits config
+CREDITS_FPS = 90
+SCROLL_SPEED = 0.4
+LINE_SPACING = 30
+CREDITS_CONTENT = [
+    "A Game By",
+    "-------------------",
+    "Zmalajev Inc. and BattleGame Studios",
+    "",
+    "Project Lead",
+    "Žiga Plevel",
+    "",
+    "Lead Developers",
+    "NejcZorko007",
+    "",
+    "Year of Creation",
+    "2024",
+    "",
+    "--- MUSIC & SOUND ---",
+    "Menu Music: Mergatroid | 8-Bit Sound",
+    "Credits Music: Dinner Set | Jazz",
+    "Game Music: Winners-Rock",
+    "",
+    "All music was recorded from a Roland D-110 Sound Module.",
+    "Used with permission from zorko4288.",
+    "",
+    "--- END OF PRODUCTION ---",
+    "Thank You For Playing Beta!",
+    "-------------------",
+    "", "", "", "", "", ""
+]
 
-        # Settings title
- 
-        tk.Label(self.settings_window, text="Settings", font=("LEDBOARD", 14)).pack(pady=10)
+# Fonts
+title_font = pygame.font.SysFont("Consolas", 64)
+version_font = pygame.font.SysFont("Consolas", 18)
+button_font = pygame.font.SysFont("Consolas", 28)
+font_large = pygame.font.SysFont("Consolas", 43)
+font_small = pygame.font.SysFont("Consolas", 24)
+notes_font = pygame.font.SysFont("Consolas", 15)
 
-        # Button for changing window size
-        tk.Button(self.settings_window, text="Change window size", command=self.change_window_size).pack(pady=12)
+#main menu buttons
+buttons = {
+    "Start": pygame.Rect(WIDTH // 2 - 100, 250, 200, 60),# positions: x, y, width, height
+    "Settings": pygame.Rect(WIDTH // 2 - 100, 350, 200, 60),
+    "Quit": pygame.Rect(WIDTH // 2 - 100, 450, 200, 60)
+}
 
-        # Button for showing change notes
-        tk.Button(self.settings_window, text="Change Notes", command=self.note_release).pack(pady=12)
+#main game screen buttons
+game_screen = {
+    "Attack": pygame.Rect(WIDTH // 2 - 320, 400, 180, 50),  # moved up 50 px, smaller size
+    "Heal": pygame.Rect(WIDTH // 2 - 100, 400, 180, 50),
+    "Defend": pygame.Rect(WIDTH // 2 + 120, 400, 180, 50)
+}
 
-        # Checkbox for fullscreen mode
-        self.fullscreen_var = tk.IntVar()  # Variable to track checkbox state
-        fullscreen_checkbox = tk.Checkbutton(
-        self.settings_window,
-        text="Enable Fullscreen",
-        variable=self.fullscreen_var,
-            onvalue=1,
-            offvalue=0,
-            command=self.toggle_fullscreen
-        )
-        fullscreen_checkbox.pack(pady=10)
+#player name input boxes init
+class InputBox:
+    def __init__(self, x, y, w, h, text=''):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.color = COLOR_INACTIVE
+        self.text = text
+        self.txt_surface = font_small.render(text, True, WHITE)
+        self.active = False
 
-    #Shop GUI
-    def shop(self):
-        self.shopwindow = tk.Toplevel(self.root)
-        self.shopwindow.title("Fatal Encounter - Shop")
-        self.shopwindow.geometry("300x250")
-        tk.Label(self.shopwindow, text="Shop", font=("LEDBOARD", 14)).pack(pady=10)
-
-        # Dropdown settings
-        shop_var = tk.StringVar(value="Item Shop")
-        shop_options = ["Item Shop", "Upgrades Shop"]
-        tk.OptionMenu(self.shopwindow, shop_var, *shop_options).pack(pady=5)
-
-        # coins label
-        coins_value = self.player.coins if hasattr(self, 'player') else int(self.config.get('coins', 'coins', fallback='0'))
-        self.shop_coins_label = tk.Label(self.shopwindow, text=f"Coins: {coins_value}", font=("Arial", 12))
-        self.shop_coins_label.pack(pady=5)
-
-        # choose menu
-        def open_selected_shop():
-            if shop_var.get() == "Item Shop":
-                self.open_item_shop()
+    def handle_event(self, event):#events for input box
+        # check for mouse click in or out of box
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.active = True
+                if self.text in ("Player Name", "Enemy Name"):
+                    self.text = ""
             else:
-                self.upgrades_shop()
+                self.active = False
+            self.color = COLOR_ACTIVE if self.active else COLOR_INACTIVE
+            self.txt_surface = font_small.render(self.text, True, WHITE)
 
-        tk.Button(self.shopwindow, text="Open Selected Shop", command=open_selected_shop).pack(pady=12)
+        # Keyboard input when active
+        if event.type == pygame.KEYDOWN and self.active:
+            if event.key == pygame.K_RETURN:
+                self.active = False
+                self.color = COLOR_INACTIVE
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            else:
+                if len(self.text) < 20:
+                    self.text += event.unicode
+            self.txt_surface = font_small.render(self.text, True, WHITE)
 
+    def update_text(self):#input box text update
+        width = max(200, self.txt_surface.get_width() + 10)
+        self.rect.w = width
 
+    def draw_text(self, surf):#inputbox draw
+        self.update_text()
+        surf.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 6))
+        pygame.draw.rect(surf, self.color, self.rect, 2)
 
-        # Exit button
-        exit_button = Button(self.shopwindow, text="Exit", command=self.shopwindow.destroy)
-        exit_button.pack(pady=3)
+# initialize boxes
+input_box_player = InputBox(WIDTH // 2 - 100, 200, 200, 36, text='Player Name')#input box positions and small text
+input_box_enemy = InputBox(WIDTH // 2 - 100, 280, 200, 36, text='Enemy Name')
+name_input_confirm_button = pygame.Rect(WIDTH // 2 - 100, 340, 200, 48)#buttons config
+name_input_back_button = pygame.Rect(WIDTH // 2 - 100, 520, 200, 60)
 
- 
-        # coins auto-update
-        self.update_shop_coins_label()
+# ----------------- Audio / Paths -----------------
+ASSET_DIR = "Audio/Menu-music"
+MENU_MUSIC = os.path.join(ASSET_DIR, "8-Bit-Sound.wav")
+GAME_MUSIC = os.path.join(ASSET_DIR, "Winners-Rock.wav")
+CREDITS_MUSIC = os.path.join(ASSET_DIR, "Jazz.wav")
+SFX_HIT = None# placeholder; can load if available
 
-    def update_shop_coins_label(self):
-        # update in shop window if exsist
-        if hasattr(self, 'shopwindow') and self.shopwindow.winfo_exists():
-            coins_value = self.player.coins if hasattr(self, 'player') else int(self.config.get('coins', 'coins', fallback='0'))
-            if hasattr(self, 'shop_coins_label'):
-                self.shop_coins_label.config(text=f"Coins: {coins_value}")
-            #scheduled update
-            self.shopwindow.after(500, self.update_shop_coins_label)
+def safe_music_load(path):#music exsists check
+    try:
+        mixer.music.load(path)
+        return True
+    except Exception:
+        print(f"Warning: failed to load music: {path}")
+        return False
+# ----------------- Utility: Save/Load last player names ----------------- (Made to remember the last used names)
+SAVE_FILE = "fe_last.json"
 
-    def open_item_shop(self):
-        self.item_shop_window = tk.Toplevel(self.root)
-        self.item_shop_window.title("Item Shop")
+def save_last_players(pname, ename):
+    try:
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump({"player": pname, "enemy": ename}, f)#write to json
+    except Exception:
+        pass
 
-        self.item_shop_window.geometry("300x450")
+def load_last_players():#load from json
+    if not os.path.exists(SAVE_FILE):
+        return None, None
+    try:
+        with open(SAVE_FILE, "r", encoding="utf-8") as f:
+            d = json.load(f)
+            return d.get("player"), d.get("enemy")
+    except Exception:
+        return None, None
 
-        tk.Label(self.item_shop_window, text="Item Shop", font=("Arial", 14)).pack(pady=10)
+# ----------------- Drawing Helpers ----------------- (loading screen, Primary)
+def draw_loading_screen(text, progress):
+    screen.fill(BLACK)
+    title_text = font_large.render(text, True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 160))#centered text
+    # bar background
+    pygame.draw.rect(screen, GRAY, (bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT), border_radius=8)# draw bar bg
+    # progress
+    pygame.draw.rect(screen, WHITE, (bar_x, bar_y, BAR_WIDTH * (progress / 100), BAR_HEIGHT), border_radius=8)# draw progress
+    pygame.draw.rect(screen, DARK_GREEN, (bar_x, bar_y, BAR_WIDTH, BAR_HEIGHT), 3, border_radius=8)# border
+    percent_text = font_small.render(f"Loading... {int(progress)}%", True, WHITE)# percent text
+    screen.blit(percent_text, (WIDTH // 2 - percent_text.get_width() // 2, bar_y + BAR_HEIGHT + 10))#centered percent
+    pygame.display.flip()#update screen
 
+def loading_screen(text, duration=1.5):
+    clock = pygame.time.Clock()
+    progress = 0
+    while progress <= 100:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        draw_loading_screen(text, progress)
+        progress += 1.5 #progress for %
+        clock.tick(144)
+    # small pause
+    t0 = time.time()
+    while time.time() - t0 < duration:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+        clock.tick(60)
 
-        self.item_shop_window.geometry("300x200")
+# ----------------- Screen Drawers -----------------
+def draw_menu():#main menu draw
+    screen.fill(BLACK)
+    title_text = title_font.render("Fatal Encounter", True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 80))
+    version_text = version_font.render(f"Version: {version}", True, WHITE)
+    screen.blit(version_text, (10, 10))
+    mouse_pos = pygame.mouse.get_pos()
+    for text, rect in buttons.items():
+        color = HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+        pygame.draw.rect(screen, color, rect, border_radius=10)# draw button
+        bt = button_font.render(text, True, WHITE)
+        screen.blit(bt, (rect.x + rect.width // 2 - bt.get_width() // 2, rect.y + rect.height // 2 - bt.get_height() // 2))
 
-        tk.Label(self.item_shop_window, text="Item Shop", font=("Arial", 14)).pack(pady=10)
+def draw_settings():#settings screen draw
+    screen.fill(BLACK)
+    title_text = title_font.render("Settings", True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 80))
 
-        exit_button = Button(self.item_shop_window, text="Exit", command=self.item_shop_window.destroy)
-        exit_button.pack(pady=5)
+    mouse_pos = pygame.mouse.get_pos()
 
- 
-        # Always show coins value
-        if hasattr(self, 'player'):
-            coins_value = self.player.coins
-        else:
-            self.config.read(self.pref_path)
-            try:
-                coins_value = int(self.config.get('coins', 'coins', fallback='0'))
-            except Exception:
-                coins_value = 0
-        tk.Label(self.item_shop_window, text=f"Coins: {coins_value}", font=("Arial", 12)).pack(pady=5)
+    back_button = pygame.Rect(WIDTH // 2 - 100, 450, 200, 60)#button config
+    credits_button = pygame.Rect(WIDTH // 2 - 100, 350, 200, 60)
+    change_note_button = pygame.Rect(WIDTH // 2 - 100, 250, 200, 60)
 
-        #item display with price
-        for item, price in Shop.item_shop.items():
-            tk.Label(self.item_shop_window, text=f"{item}: {price} coins").pack(pady=5)
-            buy_button = tk.Button(self.item_shop_window, text="Buy", command=lambda item=item: self._buy_item(item)) #add buy to every item(add more items without needing to add more code for buttons)
-            buy_button.pack(pady=2)
+    for rect, label in [# buttons
+        (back_button, "Back"),
+        (credits_button, "Credits"),
+        (change_note_button, "Change Notes")
+    ]:
+        color = HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+        pygame.draw.rect(screen, color, rect, border_radius=10)
+        txt = button_font.render(label, True, WHITE)
+        screen.blit(txt, (rect.x + rect.width // 2 - txt.get_width() // 2,
+                          rect.y + rect.height // 2 - txt.get_height() // 2))
 
-    def _buy_item(self, item):
-        price = Shop.item_shop.get(item, None)
-        #no price check
-        if price is None:
-            messagebox.showerror("Item Shop", "Item not found.")
-            return
-        # try to get coins value (class or save file)
-        if hasattr(self, 'player'):
-            coins = self.player.coins
-        else:
-            self.config.read(self.pref_path)
-            try:
-                coins = int(self.config.get('coins', 'coins', fallback='0'))
-            except Exception:
-                coins = 0
-        #value check
-        if coins < price:
-            messagebox.showerror("Item Shop", f"Insufficient coins to buy {item}!")
-            return
-        coins -= price
-        # Auto.save coins value to pref.save
-        if hasattr(self, 'player'):
-            self.player.coins = coins
-            self.save_coins()
-            self.update_health_labels()
-        else:
-            self.config['coins']['coins'] = str(coins)
-            with open(self.pref_path, 'w') as configfile:
-                self.config.write(configfile)
-        messagebox.showinfo("Item Shop", f"Bought {item} for {price} coins!\n(Shop Service Offline: Item not delivered.)")
+    return back_button, credits_button, change_note_button #return buttons for event handling
 
-    #upgrades shop logic
-    def upgrades_shop(self):
-        self.upgrades_window = tk.Toplevel(self.root)
-        self.upgrades_window.title("Upgrades Shop")
+def draw_change_notes():#change notes
+    screen.fill(BLACK)
+    title_text = title_font.render("Change Notes", True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 80))
 
-        self.upgrades_window.geometry("350x350")
+    notes = [#da notes
+        "- Pygame in full effect (fixed demo)",
+        "- converted parts of code from previous versions to work with pygame",
+        "- Improved state logic",
+        "- Added basic save for last names",
+        "- Fixed a huge load of bugs, that came with pygame (inc. battle load and screen fix)",
+        "- added timeout while enemy turn, to prevent spam attack",
+        "- improved ui",
+        "",
+        "Press Back to return."
+    ]
 
-        self.upgrades_window.geometry("350x250")
- 
-        tk.Label(self.upgrades_window, text="Upgrades Shop", font=("Arial", 14)).pack(pady=10)
+    for i, line in enumerate(notes):
+        txt = notes_font.render(line, True, LIGHT_GRAY)#font and color.. p.s, size change with font number5
+        screen.blit(txt, (WIDTH // 2 - txt.get_width() // 2, 180 + i * 40))
 
-        # Load current upgrade levels from save file
-        self.config.read(self.pref_path)
-        upgrades = self.config['upgrades'] if 'upgrades' in self.config else {}
-        sharpness_level = int(upgrades.get('Sharpness Upgrade', 0))
-        shield_level = int(upgrades.get('Shield Upgrade', 0))
+    #back button
+    back_button = pygame.Rect(WIDTH // 2 - 100, 500, 200, 60)
+    mouse_pos = pygame.mouse.get_pos()
+    color = HOVER_COLOR if back_button.collidepoint(mouse_pos) else BUTTON_COLOR
+    pygame.draw.rect(screen, color, back_button, border_radius=10)
+    bt = button_font.render("Back", True, WHITE)
+    screen.blit(bt, (back_button.x + back_button.width // 2 - bt.get_width() // 2,
+                     back_button.y + back_button.height // 2 - bt.get_height() // 2))
 
+    return back_button
 
+def draw_name_input_screen():
+    screen.fill(BLACK)
+    title_text = title_font.render("Enter Names", True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 40))
 
-        # Exit button
-        exit_button = Button(self.upgrades_window, text="Exit", command=self.upgrades_window.destroy)
-        exit_button.pack(pady=5)
+    lbl_player = button_font.render("Your Name:", True, WHITE)
+    screen.blit(lbl_player, (input_box_player.rect.x, input_box_player.rect.y - 30))
+    lbl_enemy = button_font.render("Enemy Name:", True, WHITE)
+    screen.blit(lbl_enemy, (input_box_enemy.rect.x, input_box_enemy.rect.y - 30))
 
- 
-        # show value of coins
-        if hasattr(self, 'player'):
-            coins_value = self.player.coins
-        else:
-            try:
-                coins_value = int(self.config.get('coins', 'coins', fallback='0'))
-            except Exception:
-                coins_value = 0
-        tk.Label(self.upgrades_window, text=f"Coins: {coins_value}", font=("Arial", 12)).pack(pady=5)
+    input_box_player.draw_text(screen)
+    input_box_enemy.draw_text(screen)
 
-        # Sharpness upgrade logic
-        tk.Label(self.upgrades_window, text=f"Sharpness Upgrade (Level {sharpness_level}/6)", font=("Arial", 12)).pack(pady=5)
-        if sharpness_level < 6: #Max upgrade level
-            price = Shop.upgrade_shop["Sharpness Upgrade"][sharpness_level]
-            multiplier = Shop.upgrade_multipliers["Sharpness Upgrade"][sharpness_level]
-            tk.Label(self.upgrades_window, text=f"Price: {price} | Multiplier: x{multiplier}").pack()
-            tk.Button(self.upgrades_window, text="Buy", command=lambda: self.buy_upgrade("Sharpness Upgrade")).pack(pady=2)
-        else:
-            tk.Label(self.upgrades_window, text="Max Level Reached").pack()
+    mouse_pos = pygame.mouse.get_pos()
 
-        # Shield upgrade logic
-        tk.Label(self.upgrades_window, text=f"Shield Upgrade (Level {shield_level}/5)", font=("Arial", 12)).pack(pady=5)
-        if shield_level < 5:
-            price = Shop.upgrade_shop["Shield Upgrade"][shield_level]
-            multiplier = Shop.upgrade_multipliers["Shield Upgrade"][shield_level]
-            tk.Label(self.upgrades_window, text=f"Price: {price} | Multiplier: x{multiplier}").pack()
-            tk.Button(self.upgrades_window, text="Buy", command=lambda: self.buy_upgrade("Shield Upgrade")).pack(pady=2)
-        else:
-            tk.Label(self.upgrades_window, text="Max Level Reached").pack()
-    #Upgrade logic
-    def buy_upgrade(self, upgrade_name):
-        self.config.read(self.pref_path)
-        upgrades = self.config['upgrades']
-        level = int(upgrades.get(upgrade_name, 0))
-        if level >= 6: #Max Upgrade Level
-            messagebox.showinfo("Upgrade", "Max level reached!")
-            return
-        price = Shop.upgrade_shop[upgrade_name][level]
-        # Get coins
-        if hasattr(self, 'player'):
-            coins = self.player.coins
-        else:
-            try:
-                coins = int(self.config.get('coins', 'coins', fallback='0'))
-            except Exception:
-                coins = 0
-        if coins < price:
-            messagebox.showerror("Upgrade Shop", "Insufficient coins for upgrade!")
-            return
-        coins -= price
-        level += 1
-        upgrades[upgrade_name] = str(level)
-        self.config['upgrades'] = upgrades
-        self.config['coins']['coins'] = str(coins)
-        with open(self.pref_path, 'w') as configfile:
-            self.config.write(configfile)
-        if hasattr(self, 'player'):
-            self.player.coins = coins
-            self.update_health_labels()
-        messagebox.showinfo("Upgrade Shop", f"{upgrade_name} upgraded to level {level}!\nMultiplier: x{Shop.upgrade_multipliers[upgrade_name][level-1]}")
-        self.upgrades_window.destroy()
-        self.upgrades_shop()
+    # Confirm button
+    color = HOVER_COLOR if name_input_confirm_button.collidepoint(mouse_pos) else BUTTON_COLOR
+    pygame.draw.rect(screen, color, name_input_confirm_button, border_radius=10)
+    bt = button_font.render("Confirm", True, WHITE)
+    screen.blit(bt, (name_input_confirm_button.x + name_input_confirm_button.width // 2 - bt.get_width() // 2,
+                     name_input_confirm_button.y + name_input_confirm_button.height // 2 - bt.get_height() // 2))
 
-    # Toggle fullscreen mode
-    def toggle_fullscreen(self):
-        if self.fullscreen_var.get() == 1:  # Checkbox is checked
-            self.root.attributes("-fullscreen", True)
-        else:  # Checkbox is unchecked
-            self.root.attributes("-fullscreen", False)
+    # REAL back button
+    back_button = pygame.Rect(WIDTH // 2 - 100, 450, 200, 60)
+    bcol = HOVER_COLOR if back_button.collidepoint(mouse_pos) else BUTTON_COLOR
+    pygame.draw.rect(screen, bcol, back_button, border_radius=10)
+    bt2 = button_font.render("Back", True, WHITE)
+    screen.blit(bt2, (back_button.x + back_button.width // 2 - bt2.get_width() // 2,
+                      back_button.y + back_button.height // 2 - bt2.get_height() // 2))
 
-    # Credits Window
-    def credits_credits(self):
-        self.welcome_window2 = tk.Toplevel(self.root)
-        self.welcome_window2.title("Credits")
-        self.welcome_window2.geometry("300x160")
+    return back_button
 
-        tk.Label(self.welcome_window2, text="Fatal Encounter", font=("Arial", 14)).pack(pady=10)
-        tk.Label(self.welcome_window2, text="Created by:").pack(padx=15)
-        tk.Label(self.welcome_window2, text="Zmalajev And Zorko4288").pack(padx=16)
-        tk.Label(self.welcome_window2, text=version).pack(padx=19)
-        tk.Label(self.welcome_window2, text="BattleGame.com").pack(padx=16)
+def draw_game_screen():
+    global health_player, health_enemy, log_text, player, enemy
+    screen.fill(BLACK)
 
+    if not player or not enemy:
+        update_health_labels()
+    else:
+        update_health_labels()
 
-        tk.Button(self.welcome_window2, text="Back", command=self.welcome_window2.destroy).pack(pady=15)
- 
+    # Health Bars
+    if player and enemy:
+        # Player Health Bar
+        p_bar_width = 300
+        p_hp_width = int(p_bar_width * player.health / player.max_health)
+        pygame.draw.rect(screen, DARK_GRAY, (50, 160, p_bar_width, 30), border_radius=5)
+        pygame.draw.rect(screen, GREEN, (50, 160, p_hp_width, 30), border_radius=5)
 
-    #Release note Window
-    def note_release(self):
-        self.changenotes = tk.Toplevel(self.root)
-        self.changenotes.title("Change Notes")
-        self.changenotes.geometry("410x250")
+        # Enemy Health Bar (right-aligned)
+        e_bar_width = 300
+        e_hp_width = int(e_bar_width * enemy.health / enemy.max_health)
+        e_bar_x = WIDTH - 50 - e_bar_width
+        pygame.draw.rect(screen, DARK_GRAY, (e_bar_x, 160, e_bar_width, 30), border_radius=5)
+        pygame.draw.rect(screen, GREEN, (e_bar_x + (e_bar_width - e_hp_width), 160, e_hp_width, 30), border_radius=5)
 
-        tk.Label(self.changenotes, text="Fatal Encounter", font=("Arial", 14)).pack(pady=10)
-        tk.Label(self.changenotes, text=f"For version: {version}").pack(padx=14)
-        tk.Label(self.changenotes, text="Change Notes:").pack(padx=15)
-        tk.Label(self.changenotes, text="- Started up the Shop.BattleGame.com Service").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added Shop.BattleGame.com Service").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added items and upgrades to both shops").pack(padx=16)
-        tk.Label(self.changenotes, text="- Added money system and saving system for coin value").pack(padx=16)
-        tk.Label(self.changenotes, text="- Bug Fixes").pack(padx=16)
-        tk.Label(self.changenotes, text="BattleGame.com").pack(padx=16)
+    # Health Text (this contains the names)
+    # Correct health labels
+        if health_player:
+            screen.blit(health_player, (50, 120))
+        if health_enemy:
+            screen.blit(health_enemy, (WIDTH - health_enemy.get_width() - 50, 120))
 
-    # Starting Window
-    def create_welcome_window2(self):
-        self.welcome_window2 = tk.Toplevel(self.root)
-        self.welcome_window2.title("Fatal Encounter")
-        self.welcome_window2.geometry("300x350")
-        self.welcome_window.destroy()
+    # Log Text
+    log_surface = button_font.render(log_text, True, LIGHT_GRAY)
+    log_bg_rect = log_surface.get_rect(centerx=WIDTH//2, top=HEIGHT - 120)
+    log_bg_rect.inflate_ip(20, 10)
+    pygame.draw.rect(screen, DARK_GRAY, log_bg_rect, border_radius=5)
+    screen.blit(log_surface, (log_bg_rect.x + 10, log_bg_rect.y + 5))
 
-        tk.Label(self.welcome_window2, text="Welcome to Fatal Encounter!", font=("Arial", 14)).pack(pady=10)
-        tk.Label(self.welcome_window2, text="Enter your character's name:").pack()
+    # Action Buttons
+    mouse_pos = pygame.mouse.get_pos()
+    for text, rect in game_screen.items():
+        color = HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+        if not player.is_alive() or not enemy.is_alive():
+            color = DARK_GRAY
+        pygame.draw.rect(screen, color, rect, border_radius=10)
+        bt = button_font.render(text, True, WHITE)
+        screen.blit(bt, (rect.x + rect.width // 2 - bt.get_width() // 2,
+                         rect.y + rect.height // 2 - bt.get_height() // 2))
 
-        self.player_name = tk.Entry(self.welcome_window2)
-        self.player_name.pack(pady=5)
+    # Quit Battle Button
+    quit_battle_rect = pygame.Rect(WIDTH // 2 - 100, 520, 200, 60)
+    quit_color = HOVER_COLOR if quit_battle_rect.collidepoint(mouse_pos) else BUTTON_COLOR
+    pygame.draw.rect(screen, quit_color, quit_battle_rect, border_radius=10)
+    quit_text = button_font.render("Quit Battle (ESC)", True, WHITE)
+    screen.blit(quit_text, (quit_battle_rect.x + quit_battle_rect.width // 2 - quit_text.get_width() // 2,
+                            quit_battle_rect.y + quit_battle_rect.height // 2 - quit_text.get_height() // 2))
 
-        tk.Label(self.welcome_window2, text="Enter your Enemy's name:").pack()
+    return quit_battle_rect
 
-        self.enemy_name = tk.Entry(self.welcome_window2)
-        self.enemy_name.pack(pady=5)
+# ----------------- Game functions -----------------
+def update_health_labels():
+    global health_player, health_enemy
+    if player and enemy:
+        player_color = GREEN if player.is_alive() else DARK_GRAY
+        enemy_color = GREEN if enemy.is_alive() else DARK_GRAY
+        health_player = button_font.render(f"{player.name} HP: {player.health}/{player.max_health}", True, player_color)
+        health_enemy = button_font.render(f"{enemy.name} HP: {enemy.health}/{enemy.max_health}", True, enemy_color)
 
-        tk.Button(self.welcome_window2, text="Start Game", command=self.start_game).pack(pady=10)
-        tk.Button(self.welcome_window2, text="Back", command=self.back).pack(pady=15)
-
-    def back(self):
-        self.welcome_window2.destroy()
-        self.create_welcome_window()
-
-    # Check for no name
-    def start_game(self):
-        self.player_name = self.player_name.get()
-        self.enemy_name = self.enemy_name.get()
-        if not self.player_name:
-            messagebox.showerror("Error", "Please enter a valid name.")
-            return
-
-        if not self.enemy_name:
-            messagebox.showerror("Error", "Please enter a valid name.")
-            return
-        
-        self.main_game_window(self.player_name, self.enemy_name, self.selected_resolution)
-        self.welcome_window2.destroy()
-
-    # Main Game Window
-    def main_game_window(self, player_name, enemy_name, selected_resolution):
-        self.root.deiconify()  # Ensure the root window is shown
-        self.root.title("Fatal Encounter    (Main Game By Zmalajev, GUIed By Zorko4288)")
-
-        # Load coins from save file
-        self.config.read(self.pref_path)
-        coins = 0
+def end_game(winner: str):
+    global log_text, immunity_rounds, hits, player, enemy
+    log_text = f"GAME OVER! {winner} wins!"
+    
+    # Check if the player is actually defeated before showing the message box
+    if player and player.is_alive():
+        # Player won, reset is done later by the loop when state changes
+        pass
+    elif enemy and enemy.is_alive():
+        # Enemy won or draw, display message.
         try:
-            coins = int(self.config.get('coins', 'coins', fallback='0'))
+            messagebox.showinfo("Game Over", log_text + f" (Hits: {hits})")
         except Exception:
-            coins = 0
+            print("Game Over:", log_text)
 
-        # Load upgrades for ingame
-        self.config.read(self.pref_path)
-        upgrades = self.config['upgrades'] if 'upgrades' in self.config else {}
-        sharpness_level = int(upgrades.get('Sharpness Upgrade', 0))
-        shield_level = int(upgrades.get('Shield Upgrade', 0))
-        sharpness_multiplier = Shop.upgrade_multipliers["Sharpness Upgrade"][sharpness_level-1] if sharpness_level > 0 else 1.0
-        shield_multiplier = Shop.upgrade_multipliers["Shield Upgrade"][shield_level-1] if shield_level > 0 else 1.0
+    # Note: State change logic is handled in the main loop to return to name_input/menu.
+    # We just stop the music here to prevent looping battle music over the Game Over screen.
+    try:
+        mixer.music.stop()
+    except Exception:
+        pass
+        
+    immunity_rounds = 0
+    hits = 0
 
-        self.player = Player(player_name, health=100, attack=int(25 * sharpness_multiplier), defense=int(10 * shield_multiplier), heal=0, coins=coins)
-        self.enemy = Enemy(enemy_name, health=75, attack=20, defense=10)
-        # GUI
-        self.info_label = tk.Label(self.root, text="BattleGame.com")
-        self.info_label.pack()
-        self.player_health_label = tk.Label(self.root, text=f"{self.player.name} 's HP: {self.player.health}")
-        self.player_health_label.pack()
-        # load coins value
-        self.coins_label = tk.Label(self.root, text=f"Coins: {self.player.coins}")  # Show coins
-        self.coins_label.pack()
+def heal():
+    global log_text, player, enemy, enemy_turn_pending
 
-        self.enemy_health_label = tk.Label(self.root, text=f"{self.enemy.name} 's HP: {self.enemy.health}")
-        self.enemy_health_label.pack()
-
-        self.action_frame = tk.Frame(self.root)
-        self.action_frame.pack()
-
-        self.attack_button = tk.Button(self.action_frame, text="Attack", command=self.attack)  # self.attack
-        self.attack_button.pack(side="left", padx=10)
-
-        self.heal_button = tk.Button(self.action_frame, text="Heal", command=self.heal)  # self.heal
-        self.heal_button.pack(side="left", padx=10)
-
-        self.defend_button = tk.Button(self.action_frame, text="Defend", command=self.defend)  # self.defend
-        self.defend_button.pack(side="left", padx=10)
-
-        # Apply the selected resolution
-        self.apply_resolution(selected_resolution)
+    if enemy_turn_pending:
+        return
+    if not player or not enemy or not player.is_alive() or not enemy.is_alive():
+        return
     
-    #Resolution fix -Zorko4288
-    def apply_resolution(self, selected_resolution):
-        self.selected_resolution = selected_resolution
-        if hasattr(self, 'heal_button'):
-            self.root.geometry(selected_resolution)
-            if selected_resolution == "800x600":
-                self.heal_button.config(width=10, height=10)
-                self.defend_button.config(width=10, height=10)
-                self.attack_button.config(width=10, height=10)
-            elif selected_resolution == "1024x768":
-                self.heal_button.config(width=15, height=15)
-                self.defend_button.config(width=15, height=15)
-                self.attack_button.config(width=15, height=15)
-            elif selected_resolution == "1280x768":
-                self.heal_button.config(width=16, height=16)
-                self.defend_button.config(width=16, height=16)
-                self.attack_button.config(width=16, height=16)
-            elif selected_resolution == "1360x768":
-                self.heal_button.config(width=18, height=18)
-                self.defend_button.config(width=18, height=18)
-                self.attack_button.config(width=18, height=18)
-            elif selected_resolution == "1600x1050":
-                self.heal_button.config(width=22, height=22)
-                self.defend_button.config(width=22, height=22)
-                self.attack_button.config(width=22, height=22)
-            else:
-                self.heal_button.config(width=25, height=25)
-                self.defend_button.config(width=25, height=25)
-                self.attack_button.config(width=25, height=25)
+    # Check if a cooldown is needed, or if an action is already scheduled.
+    # The original code allows spamming, which is fine for a demo.
 
-    #Window settings
-    def change_window_size(self):
-        def apply_resolution():
-            selected_resolution = resolution_var.get()
-            self.apply_resolution(selected_resolution)
-            self.change_window_size1.destroy()
-            self.settings_window.destroy()
-            messagebox.showinfo("Resolution Change", f"Resolution changed to {selected_resolution}")
-
-        self.change_window_size1 = tk.Toplevel(self.root)
-        self.change_window_size1.title("Fatal Encounter - Settings")
-        self.change_window_size1.geometry("300x150")
-
-        resolution_var = tk.StringVar(value=self.selected_resolution)
-        resolutionlist = [
-            "800x600", "1024x768", "1280x768", "1360x768", "1600x1050", "1920x1080"
-        ]
-
-        tk.Label(self.change_window_size1, text="Select Resolution:").pack(pady=10)
-        tk.OptionMenu(self.change_window_size1, resolution_var, *resolutionlist).pack(pady=10)
-        tk.Button(self.change_window_size1, text="Apply", command=apply_resolution).pack(pady=10)
-    #health label Updates
-    def update_health_labels(self):
-        # Only update labels if they still exist (window not destroyed)
-        if hasattr(self, 'player_health_label') and self.player_health_label.winfo_exists():
-            self.player_health_label.config(text=f"{self.player.name}'s HP: {self.player.health}")
-        if hasattr(self, 'enemy_health_label') and self.enemy_health_label.winfo_exists():
-            self.enemy_health_label.config(text=f"{self.enemy.name}'s HP: {self.enemy.health}")
-        if hasattr(self, 'coins_label') and self.coins_label.winfo_exists():
-            self.coins_label.config(text=f"Coins: {self.player.coins}")
-
-#Games Logic, Developed in corporation with Zorko4288 and Zmalajev inc.
-    # Attack function
-    def attack(self):
-        if not self.player.is_alive() or not self.enemy.is_alive():
-            return
-            
-        # Attack Taktika
-        damage = random.randint(self.player.attack - 2, self.player.attack + 2) - self.enemy.defense
-        self.enemy.take_damage(damage)
-        if damage < 0:
-            damage = 0  #negative damage prevention
+    superheal = random.randint(1, 3)
+    if superheal == 3:
+        amount = random.randint(20, 30)
+        player.health = min(player.max_health, player.health + amount)
+        log_text = f"{player.name} **super heals** for {amount}!"
+    else:
+        # Assuming player.heal_player() is defined in Player class
+        amount = player.heal_player()
+        log_text = f"{player.name} heals for {amount}!"
         
-        messagebox.showinfo("Attack", f"{self.player.name} attacks {self.enemy.name} for {damage} damage!")
-        BattleGame.hits += 1
-        self.update_health_labels()
+    update_health_labels()
+    enemy_turn_pending = True
+    pygame.time.set_timer(pygame.USEREVENT + 1, 400, loops=1) # schedule enemy turn once
 
-        damagechance = random.randint(1, 5)
-        if damagechance == 2:
-            criticaldamage = random.randint(5, 15)
-            total_damage = criticaldamage + damage
-            self.enemy.take_damage(criticaldamage)
-            messagebox.showinfo("Critical Hit", f"{self.player.name} attacks {self.enemy.name} with extra {criticaldamage} damage! Total damage: {total_damage}")
-
-        if not self.enemy.is_alive():
-            self.end_game(winner=self.player.name)
-            return
-        
-        self.enemy_turn()
-
-    #Heal Logic
-    def heal(self):
-        if not self.player.is_alive() or not self.enemy.is_alive():
-            return
-        
-        superheal = random.randint(1, 3)
-
-        if superheal == 3:
-            superhealing_amount = random.randint(20, 30)
-            self.player.health += superhealing_amount
-            if self.player.health > 100:
-                self.player.health = 100
-            self.update_health_labels()
-            messagebox.showinfo("Super Heal", f"{self.player.name} super heals for {superhealing_amount} health!")
-
-        # Heal Taktika
-        healing_amount = self.player.heal_player()
-        self.update_health_labels()
-        messagebox.showinfo("Heal", f"{self.player.name} heals for {healing_amount} health!")
-        self.enemy_turn()    
+def attack():
+    global log_text, hits, player, enemy, enemy_turn_pending
+    if enemy_turn_pending:
+        return
+    if not player or not enemy or not player.is_alive() or not enemy.is_alive():
+        return
     
-    #Defend Logic
-    def defend(self):
-        if not self.player.is_alive() or not self.enemy.is_alive():
-            return
-        
-        if self.immunity_rounds > 0:
-            messagebox.showinfo("Defend", f"{self.player.name} already immune for {self.immunity_rounds} more rounds!")
-
-        immunity_chance = random.randint(1, 20)
-        if immunity_chance == 20:
-            self.immunity_rounds = 3
-            messagebox.showinfo("Immunity", f"{self.player.name} is immune for 3 rounds!")
-        else:
-            self.player.defense += 5
-            messagebox.showinfo("Defend", f"{self.player.name} is defending this turn!")
-
-        self.enemy_turn()
-        # Defend Taktika
-        if self.immunity_rounds == 0:
-            self.player.defense -= 5
-
-        self.update_health_labels()
+    # Player's turn to attack
+    damage = random.randint(max(0, player.attack - 2), player.attack + 2) - enemy.defense
+    enemy.take_damage(damage)
+    hits += 1
+    log_text = f"{player.name} attacks {enemy.name} for {damage} damage!"
     
-    #Enemy AI
-    def enemy_turn(self):
-        if self.immunity_rounds > 0:
-            self.immunity_rounds -= 1
-            messagebox.showinfo("Enemy Attack", f"{self.enemy.name} attacks, but {self.player_name} is immune!")
-            return
+    # Critical chance
+    chance = random.randint(1,5)
+    if chance == 5:
+        crit = random.randint(5, 15)
+        total_damage = damage + crit
+        enemy.take_damage(total_damage)
+        log_text += f" CRITICAL! +{crit}"
+    
+    # Check if enemy died after player's attack
+    if not enemy.is_alive():
+        end_game(winner=player.name)
+        return
 
-        damage = max(0, random.randint(self.enemy.attack - 2, self.enemy.attack + 2) - self.player.defense)
-        self.player.take_damage(damage)
-        messagebox.showinfo("Enemy Attack", f"{self.enemy.name} attacks {self.player.name} for {damage} damage!")
-        self.update_health_labels()
+    update_health_labels()
+    enemy_turn_pending = True
+    pygame.time.set_timer(pygame.USEREVENT + 1, 450, loops=1)# enemy turn
 
-        if not self.player.is_alive():
-            self.end_game(winner=self.enemy.name)
-            self.update_health_labels()
+def defend():
+    global log_text, immunity_rounds, enemy_turn_pending
+    if enemy_turn_pending:
+        return
+    if not player or not enemy or not player.is_alive() or not enemy.is_alive():
+        return
+        
+    immunity_rounds = 1
+    log_text = f"{player.name} raises guard and will be immune for 1 enemy attack!"
+    enemy_turn_pending = False
+    pygame.time.set_timer(pygame.USEREVENT + 1, 350, loops=1)# schedule enemy turn
 
-    # End game function
-    def end_game(self, winner):
-        bonusreward = 0 #default value
-        # Display the winner message
-        if winner == self.player.name:
-            reward = random.randint(200, 400) #random for coin reward
-            if BattleGame.hits == 1: #if player oneshuts enemy
-                bonusreward = random.randint(500, 1000)
-            self.player.coins += reward #add coins to player
-            self.player.coins += bonusreward #add bonus coins for oneshot
-            self.save_coins()#initiate autosave
-            messagebox.showinfo("Battle Over", f"{self.player.name} wins the battle!\nYou earned {reward} coins!")
-            messagebox.showinfo("Bonus", f"\nYou Receive {bonusreward} coins for oneshot!")
-        else:
-            messagebox.showinfo("Battle Over", f"{self.player.name} has been defeated. {self.enemy.name} wins.")
+def enemy_turn():
+    global log_text, immunity_rounds, player, enemy, enemy_turn_pending
+    enemy_turn_pending = False
+    
+    if not player or not enemy or not player.is_alive() or not enemy.is_alive():
+        return
 
-        # autosave
-        self.save_coins()
+    # 1. Handle immunity
+    if immunity_rounds > 0:
+        immunity_rounds -= 1
+        log_text = f"{enemy.name} attacks but {player.name} is immune (Defense up)!"
+        return
+    else:
+        # Enemy attacks (with defense applied to player damage taken)
+        dmg = max(0, random.randint(max(0, enemy.attack - 2), enemy.attack + 2) - player.defense)
+        player.take_damage(dmg)
+        log_text = f"{enemy.name} attacks {player.name} for {dmg} damage!"
+        
+    update_health_labels()
+    
+    # 3. Check for game over (enemy wins)
+    if not player.is_alive():
+        end_game(winner=enemy.name)
+    
+def handle_back_button(state, back_rect, music_path=None):
+    mouse_pos = pygame.mouse.get_pos()
+    pressed = pygame.mouse.get_pressed()[0]  # left mouse button
 
-        # Destroy the main game window
-        self.root.destroy()
+    # Mouse click on back button
+    if pressed and back_rect.collidepoint(mouse_pos):
+        # Stop any game music if given
+        if music_path:
+            try:
+                mixer.music.stop()
+                mixer.music.unload()
+                safe_music_load(music_path)
+                mixer.music.play(-1)
+            except Exception:
+                pass
+        return "menu"
 
-        # Start Main Window
-        self.root = tk.Tk()
-        self.root.withdraw()
-        self.create_welcome_window()
-#Game loop
+    return state
+
+
+# ----------------- Credits -----------------
+def run_credits(credits_music_path=None, menu_music_path=None):
+    try:
+        mixer.music.stop()
+        mixer.music.unload()
+    except Exception:
+        pass
+    if credits_music_path and safe_music_load(credits_music_path):
+        mixer.music.play(loops=0)
+    clock = pygame.time.Clock()
+    try:
+        f = pygame.font.SysFont("Consolas", 22)
+    except Exception:
+        f = pygame.font.SysFont(None, 22)
+    total_lines = len(CREDITS_CONTENT)
+    total_height = total_lines * LINE_SPACING
+    scroll_y = HEIGHT
+    running = True
+    while running:
+        for e in pygame.event.get():
+            if e.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                running = False
+        scroll_y -= SCROLL_SPEED
+        if scroll_y < -total_height:
+            running = False
+        screen.fill(BLACK)
+        for i, line in enumerate(CREDITS_CONTENT):
+            y = scroll_y + i * LINE_SPACING
+            if -LINE_SPACING < y < HEIGHT:
+                txt = f.render(line, True, WHITE)
+                rect = txt.get_rect(centerx=WIDTH // 2)
+                rect.y = int(y)
+                screen.blit(txt, rect)
+        pygame.display.flip()
+        clock.tick(CREDITS_FPS)
+    try:
+        mixer.music.fadeout(800)
+    except Exception:
+        pass
+    time.sleep(0.6)
+    if menu_music_path and safe_music_load(menu_music_path):
+        mixer.music.play(-1)
+
+# ----------------- Main Menu Loop (rewritten & fixed) -----------------
+def menu_loop():
+    global player, enemy, immunity_rounds, log_text, hits
+    clock = pygame.time.Clock()
+    running = True
+    state: Literal["menu", "settings", "name_input", "game", "change_notes"] = "menu"
+    previous_state = "menu"  # not used for back anymore except for start/game exit
+    back_button = None
+
+    # --- Hard-coded back routing ---
+    BACK_TARGET = {
+        "settings": "menu",
+        "change_notes": "settings",
+        "name_input": "menu"
+    }
+
+    # Paths
+    menu_music_path = MENU_MUSIC
+    game_music_path = GAME_MUSIC
+    credits_music_path = CREDITS_MUSIC
+
+    # One-time initialization flags
+    state_initialized = {
+        "menu": False,
+        "settings": False,
+        "name_input": False,
+        "game": False,
+        "change_notes": False
+    }
+
+    hits = 0
+
+    # Start menu music
+    if safe_music_load(menu_music_path):
+        try:
+            mixer.music.play(-1)
+        except Exception:
+            pass
+
+    # Prefill name input boxes
+    last_p, last_e = load_last_players()
+    if last_p:
+        input_box_player.text = last_p
+        input_box_player.txt_surface = font_small.render(last_p, True, WHITE)
+    if last_e:
+        input_box_enemy.text = last_e
+        input_box_enemy.txt_surface = font_small.render(last_e, True, WHITE)
+
+    # ---------------- MAIN LOOP ----------------
+    while running:
+
+        # Draw according to state
+        if state == "menu":
+            if not state_initialized["menu"]:
+                state_initialized = {k: False for k in state_initialized}
+                state_initialized["menu"] = True
+
+                if not mixer.music.get_busy() and safe_music_load(menu_music_path):
+                    try:
+                        mixer.music.play(-1)
+                    except Exception:
+                        pass
+
+            draw_menu()
+
+        elif state == "settings":
+            if not state_initialized["settings"]:
+                state_initialized = {k: False for k in state_initialized}
+                state_initialized["settings"] = True
+
+            back_button, credits_button, change_note_button = draw_settings()
+
+        elif state == "change_notes":
+            if not state_initialized["change_notes"]:
+                state_initialized = {k: False for k in state_initialized}
+                state_initialized["change_notes"] = True
+
+            back_button = draw_change_notes()
+
+        elif state == "name_input":
+            if not state_initialized["name_input"]:
+                state_initialized = {k: False for k in state_initialized}
+                state_initialized["name_input"] = True
+
+            back_button = draw_name_input_screen()
+
+        elif state == "game":
+            if not state_initialized["game"]:
+                state_initialized = {k: False for k in state_initialized}
+                state_initialized["game"] = True
+
+                try:
+                    mixer.music.stop()
+                    mixer.music.unload()
+                except Exception:
+                    pass
+
+                loading_screen("Entering Battle...", duration=0.8)
+
+                if safe_music_load(game_music_path):
+                    try:
+                        mixer.music.play(-1)
+                    except Exception:
+                        pass
+
+            quit_battle_rect = draw_game_screen()
+
+        pygame.display.flip()
+
+        # --------- EVENT PROCESSING ---------
+        for event in pygame.event.get():
+
+            if event.type == pygame.QUIT:
+                running = False
+                break
+
+            if event.type == pygame.USEREVENT + 1:
+                enemy_turn()
+                continue
+
+            if state == "name_input":
+                input_box_player.handle_event(event)
+                input_box_enemy.handle_event(event)
+
+            # MOUSE CLICK
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                pos = event.pos
+
+                # -------- MENU --------
+                if state == "menu":
+                    if buttons["Start"].collidepoint(pos):
+                        previous_state = state
+                        loading_screen("Loading Game Assets...", duration=0.7)
+
+                        try:
+                            mixer.music.stop()
+                            mixer.music.unload()
+                        except Exception:
+                            pass
+
+                        state = "name_input"
+
+                    elif buttons["Settings"].collidepoint(pos):
+                        previous_state = state
+                        state = "settings"
+
+                    elif buttons["Quit"].collidepoint(pos):
+                        try:
+                            mixer.music.stop()
+                            mixer.quit()
+                        except Exception:
+                            pass
+
+                        try:
+                            messagebox.showinfo("Quit", "Thank you for trying the demo! See you on B1.1.7!")
+                        except Exception:
+                            print("Quit: Thank you for trying the demo!")
+
+                        running = False
+                        break
+
+                # -------- SETTINGS --------
+                elif state == "settings":
+                    if credits_button is not None and credits_button.collidepoint(pos):
+                        previous_state = state
+                        try:
+                            messagebox.showinfo("Credits", "Showing credits... (press ESC to skip)")
+                        except Exception:
+                            print("Credits: Showing credits... (press ESC to skip)")
+                        run_credits(credits_music_path, menu_music_path)
+                        state = "menu"
+
+                    elif back_button is not None and back_button.collidepoint(pos):
+                        state = BACK_TARGET["settings"]
+
+                    elif change_note_button is not None and change_note_button.collidepoint(pos):
+                        previous_state = state
+                        state = "change_notes"
+
+                # -------- CHANGE NOTES --------
+                elif state == "change_notes":
+                    if back_button is not None and back_button.collidepoint(pos):
+                        state = BACK_TARGET["change_notes"]
+
+                # -------- NAME INPUT --------
+                elif state == "name_input":
+
+                    if name_input_confirm_button.collidepoint(pos):
+                        ptext = input_box_player.text.strip() or "Hero"
+                        etext = input_box_enemy.text.strip() or "Fighter"
+
+                        save_last_players(ptext, etext)
+
+                        player = Player(ptext, health=100, attack=15, defense=5, heal=0)
+                        player.max_health = 100
+                        enemy = Enemy(etext, health=100, attack=12, defense=3)
+                        enemy.max_health = 100
+
+                        hits = 0
+                        update_health_labels()
+
+                        log_text = f"{player.name} vs {enemy.name}! Battle Start!"
+
+                        previous_state = state
+                        state = "game"
+
+                    elif back_button is not None and back_button.collidepoint(pos):
+                        state = BACK_TARGET["name_input"]  # -> menu
+
+                # -------- GAME --------
+                elif state == "game":
+                    if not (player and player.is_alive() and enemy and enemy.is_alive()):
+                        if quit_battle_rect.collidepoint(pos):
+                            previous_state = state
+                            state = "menu"
+                        continue
+
+                    if game_screen["Attack"].collidepoint(pos):
+                        attack()
+                    elif game_screen["Heal"].collidepoint(pos):
+                        heal()
+                    elif game_screen["Defend"].collidepoint(pos):
+                        defend()
+                    elif quit_battle_rect.collidepoint(pos):
+                        previous_state = state
+                        state = "name_input"
+
+                        try:
+                            mixer.music.stop()
+                            mixer.music.unload()
+                        except Exception:
+                            pass
+
+                        if safe_music_load(menu_music_path):
+                            try:
+                                mixer.music.play(-1)
+                            except Exception:
+                                pass
+
+            # -------- KEYBOARD --------
+            if event.type == pygame.KEYDOWN:
+
+                # ESC Exit from Battle
+                if event.key == pygame.K_ESCAPE:
+
+                    if state == "game":
+                        if player and enemy:
+                            try:
+                                messagebox.showinfo("Exit to Menu", "Returning to name input. Current battle progress is lost.")
+                            except Exception:
+                                print("Returning to name input. Current battle progress is lost.")
+
+                        player = None
+                        enemy = None
+
+                        previous_state = state
+                        state = "name_input"
+
+                        try:
+                            mixer.music.stop()
+                            mixer.music.unload()
+                        except Exception:
+                            pass
+
+                        if safe_music_load(menu_music_path):
+                            try:
+                                mixer.music.play(-1)
+                            except Exception:
+                                pass
+
+                    # ESC from settings/change_notes/name_input
+                    elif state in ["settings", "change_notes", "name_input"]:
+                        state = BACK_TARGET[state]
+
+        clock.tick(60)
+
+    # Cleanup
+    try:
+        mixer.music.stop()
+    except Exception:
+        pass
+
+    pygame.quit()
+    sys.exit()
+
+# ----------------- Entrypoint -----------------
 if __name__ == "__main__":
-    root = tk.Tk()
-    game = BattleGame(root)
-    root.mainloop()
-
-#Used code
-    #print("""# Create player and enemy objects
-    #print("Welcome to the battle game!")
-    #player_name = input("Enter your character's name: ")
-    
-    # Create player and enemy objects
-    #player = Player(player_name, health=100, attack=25, defense=10, heal=0)
-    #enemy = Enemy(name="Noatov tič", health=75, attack=20, defense=10)
-
-    # Start the battle
-    #battle(player, enemy)
-    
-          # Function to handle the battle
-#def battle(player, enemy):
-    #print(f"\n{player.name} encounters {enemy.name}!")
-    #while player.is_alive() and enemy.is_alive():
-        #print(f"\n{player.name}'s HP: {player.health} | {enemy.name}'s HP: {enemy.health}")
-        #print("Choose an action:")
-        #print("1. Attack")
-        #print("2. Defend")
-        #print("3. Heal")
-        #choice = input("Enter 1, 2 or 3: ")
-
-        #if choice == '1':  # Player attacks enemy
-            #player.attack_enemy(enemy)
-        #elif choice == '2':  # Player defends (no damage for this round)
-            #print(f"{player.name} is defending this turn!")
-        #elif choice == '3':  # Player heals
-            #player.heal_player()
-        #else:
-            #print("Invalid choice. Please choose 1, 2, or 3.")
-            #continue
-
-        # Enemy attacks player after player's action
-        #if enemy.is_alive():
-            #time.sleep(1)  # Simulate time between actions
-            #enemy.attack_player(player)
-
-        #time.sleep(1)  # Pause between turns
-
-    # Determine winner
-    #if player.is_alive():
-        #print(f"\n{player.name} wins the battle!")
-    #else:
-
-        #print(f"\n{player.name} has been defeated. {enemy.name} wins.")""")
+    # small startup load
+    loading_screen("Fatal Encounter (Fixed Demo)", duration=0.9)
+    menu_loop()
