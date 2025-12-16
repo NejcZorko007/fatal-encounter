@@ -1,0 +1,9 @@
+[buyed_items]
+
+[coins]
+coins = 10963
+
+[upgrades]
+sharpness upgrade = 6
+shield upgrade = 5
+

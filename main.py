@@ -7,6 +7,7 @@ import time
 from typing import Literal
 from tkinter import messagebox
 from pygame import mixer
+import requests
 # ----------------- GAME IMPORTS (with Fallback) -------------------
 try:
     from functions.shop import Shop
@@ -212,6 +213,8 @@ def safe_music_load(path):#music exsists check
     except Exception:
         print(f"Warning: failed to load music: {path}")
         return False
+    
+# ----------------- Lan Play (Coming soon...) -----------------
 # ----------------- Utility: Save/Load last player names ----------------- (Made to remember the last used names)
 SAVE_FILE = "fe_last.json"
 
