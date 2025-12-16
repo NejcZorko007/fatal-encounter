@@ -1,0 +1,9 @@
+[buyed_items]
+
+[coins]
+coins = 0
+
+[upgrades]
+sharpness upgrade = 0
+shield upgrade = 0
+
